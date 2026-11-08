@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>バスケ スコアアプリ【男子用】 - 申込書Excel取込対応</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --panel-bg: rgba(255, 255, 255, 0.04);
+      --panel-border: rgba(255, 255, 255, 0.1);
+      --accent-orange: #ff6b00;
+      --accent-cyan: #00f0ff;
+      --accent-red: #ff2a2a;
+      --accent-green: #00ff88;
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+    }
+
+    body { 
+      font-family: 'Noto Sans JP', sans-serif; 
+      background: radial-gradient(circle at top, #1a2235, var(--bg-main)); 
+      color: var(--text-main); 
+      margin: 0; padding: 15px 20px;
+      min-height: 100vh;
+    }
+    
+    .header-area { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid var(--panel-border); padding-bottom: 10px; }
+    .tabs { display: flex; align-items: center; }
+    .category-badge { background: var(--accent-orange); color: #000; font-weight: bold; padding: 4px 10px; border-radius: 4px; font-size: 14px; margin-right: 15px; }
+    .tab-btn { 
+      padding: 12px 25px; font-size: 16px; cursor: pointer; 
+      background: transparent; color: var(--text-sub); border: none; 
+      margin-right: 5px; transition: all 0.3s; font-family: inherit; font-weight: bold;
+    }
+    .tab-btn:hover { color: var(--text-main); }
+    .tab-btn.active { 
+      color: var(--accent-orange); 
+      border-bottom: 3px solid var(--accent-orange); 
+      text-shadow: 0 0 10px rgba(255, 107, 0, 0.5);
+    }
+
+    .header-actions { display: flex; gap: 15px; align-items: center; }
+    
+    .court-select {
+      background: rgba(0,0,0,0.5); color: var(--accent-cyan); border: 2px solid var(--accent-cyan);
+      padding: 8px 15px; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer;
+    }
+    
+    .export-btn {
+      background: rgba(255, 255, 255, 0.1); border: 1px solid var(--text-sub);
+      color: #fff; padding: 10px 15px; border-radius: 8px; cursor: pointer;
+      font-weight: bold; transition: 0.2s;
+    }
+    .export-btn:hover { background: #fff; color: #000; }
+    .reset-btn { border-color: rgba(255, 42, 42, 0.5); color: var(--accent-red); }
+    .reset-btn:hover { background: var(--accent-red); color: #fff; border-color: var(--accent-red); }
+    .view-score-btn { border-color: rgba(0, 240, 255, 0.5); color: var(--accent-cyan); }
+    .view-score-btn:hover { background: var(--accent-cyan); color: #000; border-color: var(--accent-cyan); }
+
+    .sync-status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 8px 15px;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: bold;
+    }
+    .status-indicator.online { color: var(--accent-green); }
+    .status-indicator.error { color: var(--accent-red); }
+
+    .tab-content { display: none; animation: fadeIn 0.3s; }
+    .tab-content.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    .team-container { display: flex; gap: 25px; }
+    .team-box { flex: 1; background: var(--panel-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--panel-border); backdrop-filter: blur(5px); }
+    .team-header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; }
+    .team-header input[type="text"] { 
+      background: rgba(0,0,0,0.3); color: #fff; border: 1px solid var(--panel-border); 
+      padding: 10px; font-size: 20px; width: 100%; box-sizing: border-box; border-radius: 6px; font-weight: bold;
+    }
+    
+    .team-preset-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .preset-select { 
+      background: rgba(0,0,0,0.5); color: #fff; border: 1px solid var(--text-sub); 
+      padding: 8px; border-radius: 6px; flex: 1; font-size: 14px; cursor: pointer; min-width: 140px;
+    }
+    .preset-save-btn { 
+      background: var(--accent-orange); color: #000; border: none; 
+      padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s;
+    }
+    .preset-save-btn:hover { background: #ffa755; }
+
+    .excel-import-btn {
+      background: rgba(0, 240, 255, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan);
+      padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s;
+    }
+    .excel-import-btn:hover { background: var(--accent-cyan); color: #000; }
+
+    table { width: 100%; border-collapse: collapse; text-align: center; }
+    th { color: var(--text-sub); padding: 10px; font-size: 13px; border-bottom: 1px solid var(--panel-border); }
+    td { padding: 4px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    input[type="number"], input[type="text"] { 
+      background: rgba(0,0,0,0.3); color: #fff; border: 1px solid #333; 
+      padding: 6px; text-align: center; border-radius: 4px; width: 90%;
+    }
+    input[type="checkbox"] { transform: scale(1.4); accent-color: var(--accent-orange); cursor: pointer; }
+
+    .scoreboard { 
+      display: flex; justify-content: space-between; align-items: center; 
+      background: var(--panel-bg); padding: 20px 40px; border-radius: 12px; 
+      border: 1px solid var(--panel-border); margin-bottom: 25px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .team-info { display: flex; flex-direction: column; align-items: center; width: 30%; gap: 8px; }
+    .score-team-name { font-size: 26px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+    
+    .team-sub-row { display: flex; gap: 8px; align-items: center; width: 100%; justify-content: center; }
+    
+    .timeout-container { display: flex; align-items: center; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--text-sub); border-radius: 20px; overflow: hidden; flex: 1; }
+    .timeout-btn {
+      background: transparent; border: none;
+      color: var(--text-sub); padding: 5px 8px;
+      font-size: 13px; cursor: pointer; transition: 0.2s; font-weight: bold; flex: 1; text-align: center;
+    }
+    .timeout-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    .timeout-adj-btn {
+      background: rgba(255, 255, 255, 0.1); border: none; color: #fff; width: 26px; height: 100%; cursor: pointer; font-weight: bold; font-size: 14px; display: flex; justify-content: center; align-items: center;
+    }
+    .timeout-adj-btn:hover { background: rgba(255, 255, 255, 0.25); }
+
+    .coach-tf-btn {
+      background: rgba(255, 107, 0, 0.15); border: 1px solid var(--accent-orange);
+      color: var(--accent-orange); padding: 5px 10px; border-radius: 8px;
+      font-size: 12px; cursor: pointer; font-weight: bold; transition: 0.2s;
+    }
+    .coach-tf-btn:hover { background: var(--accent-orange); color: #000; }
+
+    .team-foul-box {
+      font-family: 'Oswald', sans-serif;
+      font-size: 14px; color: var(--accent-red); background: rgba(255, 42, 42, 0.1);
+      border: 1px solid rgba(255, 42, 42, 0.3); padding: 3px 15px; border-radius: 6px;
+      font-weight: bold; transition: all 0.3s; width: 100%; box-sizing: border-box; text-align: center;
+    }
+    .team-foul-box.penalty { background: var(--accent-red); color: #fff; box-shadow: 0 0 12px rgba(255, 42, 42, 0.6); border-color: #fff; animation: pulse 1s infinite; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+    .score-center { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 36%; }
+    .score-display { font-family: 'Oswald', sans-serif; font-size: 65px; font-weight: 700; color: #fff; display: flex; gap: 20px; align-items: center; text-shadow: 0 0 15px rgba(255,255,255,0.3); }
+    .score-num { min-width: 80px; text-align: center; }
+    .score-divider { color: var(--accent-orange); font-size: 50px; padding-bottom: 8px; }
+    
+    .quarter-display-box { 
+      background: var(--accent-orange); color: #000; font-weight: bold; 
+      padding: 6px 25px; border-radius: 20px; font-size: 16px; margin-top: -5px;
+      font-family: 'Oswald', sans-serif; box-shadow: 0 0 10px rgba(255,107,0,0.3);
+      letter-spacing: 1px;
+    }
+    .quarter-display-box.finished { background: var(--accent-red); color: #fff; box-shadow: 0 0 15px rgba(255,42,42,0.5); }
+
+    .quarter-controls { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+    .q-ctrl-btn {
+      background: rgba(255,255,255,0.08); border: 1px solid var(--panel-border);
+      color: var(--text-main); padding: 5px 10px; border-radius: 6px; font-size: 12px;
+      cursor: pointer; font-weight: bold; transition: 0.2s;
+    }
+    .q-ctrl-btn:hover { background: rgba(255,255,255,0.2); }
+    .q-ctrl-btn.ot-action { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+    .q-ctrl-btn.ot-action:hover { background: rgba(0,240,255,0.15); }
+    .q-ctrl-btn.end-action { border-color: var(--accent-red); color: var(--accent-red); }
+    .q-ctrl-btn.end-action:hover { background: rgba(255,42,42,0.2); }
+
+    .action-area { display: flex; justify-content: space-between; gap: 15px; height: 420px; }
+    .history-box { flex: 1.2; background: rgba(0,0,0,0.4); border: 1px solid var(--panel-border); border-radius: 12px; padding: 12px; overflow-y: auto; font-size: 13px; color: var(--text-sub); }
+    .history-title { text-align: center; font-family: 'Oswald', sans-serif; letter-spacing: 2px; border-bottom: 1px solid var(--panel-border); padding-bottom: 8px; margin-bottom: 10px; }
+    .history-item { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: space-between; transition: 0.3s; }
+    .history-item-content { display: flex; justify-content: space-between; flex: 1; margin-right: 10px; }
+    .history-item.quarter-log { color: #fff; justify-content: center; font-weight: bold; border-bottom: 2px dashed rgba(255,255,255,0.3); padding: 10px 0; font-family: 'Oswald', sans-serif; }
+    .history-item span.point { color: var(--accent-cyan); font-weight: bold; font-family: 'Oswald', sans-serif; font-size: 15px;}
+    .history-item span.foul { color: var(--accent-red); font-weight: bold; }
+
+    .delete-log-btn { background: rgba(255, 255, 255, 0.1); border: none; color: #fff; border-radius: 4px; cursor: pointer; width: 24px; height: 24px; display: flex; justify-content: center; align-items: center; font-size: 12px; transition: 0.2s; }
+    .delete-log-btn:hover { background: var(--accent-red); }
+
+    .player-list { flex: 1.8; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 410px; }
+    .player-btn { display: flex; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid var(--panel-border); border-radius: 10px; padding: 10px 15px; cursor: pointer; color: var(--text-main); transition: 0.2s; }
+    .player-btn:hover { background: rgba(255,255,255,0.08); transform: translateX(2px); }
+    .player-btn.selected { border-color: var(--accent-orange); background: rgba(255, 107, 0, 0.15); box-shadow: 0 0 15px rgba(255, 107, 0, 0.3); }
+    .player-btn.danger { border-color: rgba(255, 150, 0, 0.8); }
+    .player-btn.fouled-out { border-color: var(--accent-red); background: rgba(255, 42, 42, 0.15); opacity: 0.7; }
+    .player-number { font-family: 'Oswald', sans-serif; font-size: 20px; background: rgba(0,0,0,0.5); width: 36px; height: 36px; border-radius: 6px; display: flex; justify-content: center; align-items: center; margin-right: 15px; }
+    .player-btn.selected .player-number { background: var(--accent-orange); color: #000; }
+    .player-name { font-size: 18px; font-weight: bold; }
+    .player-foul-badge { margin-left: auto; font-family: 'Oswald', sans-serif; font-size: 13px; background: rgba(255, 255, 255, 0.1); padding: 2px 8px; border-radius: 4px; color: var(--text-sub); display: flex; gap: 6px; }
+    .player-btn.danger .player-foul-badge { background: #ff8c00; color: #fff; }
+    .player-btn.fouled-out .player-foul-badge { background: var(--accent-red); color: #fff; }
+
+    .center-actions { flex: 1; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+    .action-btn { background: linear-gradient(180deg, #2a2d3e 0%, #1a1c29 100%); color: #fff; border: 1px solid var(--panel-border); border-radius: 10px; padding: 12px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.1s; font-family: 'Oswald', sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    .action-btn:active { transform: translateY(2px); box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+    .btn-score-1 { color: #fff; text-shadow: 0 0 5px rgba(255, 255, 255, 0.4); border-color: rgba(255, 255, 255, 0.2); }
+    .btn-score-2 { color: var(--accent-cyan); text-shadow: 0 0 5px rgba(0, 240, 255, 0.4); border-color: rgba(0, 240, 255, 0.2); }
+    .btn-score-3 { color: var(--accent-orange); text-shadow: 0 0 5px rgba(255, 107, 0, 0.4); border-color: rgba(255, 107, 0, 0.2); }
+    .btn-foul { color: var(--accent-red); text-shadow: 0 0 5px rgba(255, 42, 42, 0.4); border-color: rgba(255, 42, 42, 0.2); font-family: 'Noto Sans JP', sans-serif; font-size: 16px;}
+    .btn-sub { color: var(--text-main); font-family: 'Noto Sans JP', sans-serif; font-size: 15px;}
+    .btn-undo { background: transparent; color: var(--text-sub); border: 1px dashed var(--text-sub); font-family: 'Noto Sans JP', sans-serif; font-size: 13px; padding: 8px; box-shadow: none; }
+    .btn-undo:hover { background: rgba(255,255,255,0.1); color: #fff; border-color: #fff; }
+
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 1000; }
+    .modal-content { background: var(--bg-main); padding: 15px; border-radius: 12px; border: 1px solid var(--accent-orange); width: 540px; max-width: 95vw; text-align: center; box-shadow: 0 0 30px rgba(255, 107, 0, 0.2); max-height: 98vh; overflow-y: auto;}
+    .modal-content h3 { margin-top: 0; color: var(--text-main); }
+    .bench-list { display: flex; flex-direction: column; gap: 8px; margin: 15px 0; max-height: 280px; overflow-y: auto; text-align: left; }
+    .bench-item { background: rgba(255,255,255,0.05); color: #fff; border: 1px solid var(--panel-border); padding: 10px 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .bench-item:hover { border-color: var(--accent-orange); background: rgba(255,255,255,0.1); }
+    .cancel-btn { background: transparent; color: var(--text-sub); border: 1px solid var(--text-sub); padding: 6px 16px; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 12px; }
+    .cancel-btn:hover { background: rgba(255,255,255,0.1); color:#fff; }
+
+    .history-list-container { display: flex; flex-direction: column; gap: 15px; max-width: 800px; margin: 0 auto; }
+    .history-card { background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 10px; padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; }
+    .history-date { color: var(--text-sub); font-size: 14px; margin-bottom: 8px;}
+    .history-match { font-size: 22px; font-weight: bold; display: flex; align-items: center; gap: 15px;}
+    .history-score-hl { color: var(--accent-orange); font-family: 'Oswald', sans-serif; font-size: 28px; }
+
+    .btn-delete-match { background: transparent; border: 1px solid rgba(255,42,42,0.5); color: var(--accent-red); padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s; }
+    .btn-delete-match:hover { background: var(--accent-red); color: #fff; border-color: var(--accent-red); }
+
+    .bs-table th { color: var(--text-sub); padding: 2px 4px; border-bottom: 1px solid var(--panel-border); font-size: 9px;}
+    .bs-table td { padding: 2px 4px; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 9px;}
+    .bs-table-total { font-weight: bold; font-family: 'Oswald', sans-serif; }
+
+    .game-report-box { margin-top: 5px; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--panel-border); border-radius: 6px; padding: 5px 8px; text-align: left; }
+    .game-report-title { font-family: 'Oswald', sans-serif; font-size: 11px; color: var(--accent-orange); margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; }
+    .game-report-textarea { width: 100%; background: rgba(0, 0, 0, 0.5); border: 1px solid var(--panel-border); color: #fff; border-radius: 4px; padding: 5px; font-family: 'Noto Sans JP', sans-serif; font-size: 10px; box-sizing: border-box; resize: vertical; height: 65px; line-height: 1.4; white-space: pre-wrap; }
+    .game-report-textarea:focus { outline: none; border-color: var(--accent-cyan); }
+    .report-save-info { font-size: 8px; color: var(--text-sub); text-align: right; margin-top: 1px; }
+    .auto-gen-btn { background: rgba(0, 240, 255, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 9px; font-weight: bold; transition: 0.2s; }
+    .auto-gen-btn:hover { background: var(--accent-cyan); color: #000; }
+  </style>
+</head>
+<body>
+
+  <div class="header-area">
+    <div class="tabs">
+      <span class="category-badge">🚹 男子の部</span>
+      <button class="tab-btn active" id="btn-tab-setup" onclick="switchTab('tab-setup')">SETTING</button>
+      <button class="tab-btn" id="btn-tab-score" onclick="switchTab('tab-score')">SCORE BOARD</button>
+      <button class="tab-btn" id="btn-tab-history" onclick="switchTab('tab-history')">HISTORY (履歴)</button>
+    </div>
+    
+    <div class="header-actions">
+      <select id="admin_court_select" class="court-select" onchange="sendScoreToFirebase()">
+        <option value="court_A">🏀 Aコート 担当 (男子)</option>
+        <option value="court_B">🏀 Bコート 担当 (男子)</option>
+        <option value="court_C">🏀 Cコート 担当 (男子)</option>
+        <option value="court_D">🏀 Dコート 担当 (男子)</option>
+      </select>
+
+      <button class="export-btn view-score-btn" onclick="showCurrentBoxScore()">📊 現在のボックススコア</button>
+      <button class="export-btn reset-btn" onclick="confirmReset()">🔄 試合を保存して新しく</button>
+    </div>
+  </div>
+
+  <div class="sync-status-bar">
+    <div>現在選択中のコート: <strong id="current_court_label" style="color:var(--accent-cyan);">Aコート (男子)</strong></div>
+    <div class="status-indicator online" id="sync_status_badge">🟢 クラウド同期: 準備完了</div>
+  </div>
+
+  <div id="tab-setup" class="tab-content active">
+    <div class="team-container">
+      <div class="team-box">
+        <div class="team-header">
+          <input type="text" id="teamA_name" placeholder="チーム名を入力 (例: YSI)" oninput="updateTeamNamesFromInputs()">
+          <div class="team-preset-actions">
+            <select class="preset-select" id="teamA_preset" onchange="loadTeamPreset('teamA')"><option value="">📂 登録チームを呼出...</option></select>
+            <button class="preset-save-btn" onclick="saveTeamPreset('teamA')">💾 登録/上書き</button>
+            <button class="excel-import-btn" onclick="document.getElementById('teamA_excel_file').click()">📥 男子申込書Excel読込</button>
+            <input type="file" id="teamA_excel_file" accept=".xlsx, .xls" style="display:none;" onchange="importTeamExcel(event, 'teamA')">
+          </div>
+        </div>
+        <table><thead><tr><th>START</th><th>(C)</th><th>No.</th><th>NAME</th></tr></thead><tbody id="teamA_players"></tbody></table>
+      </div>
+
+      <div class="team-box">
+        <div class="team-header">
+          <input type="text" id="teamB_name" placeholder="チーム名を入力 (例: CROSS8)" oninput="updateTeamNamesFromInputs()">
+          <div class="team-preset-actions">
+            <select class="preset-select" id="teamB_preset" onchange="loadTeamPreset('teamB')"><option value="">📂 登録チームを呼出...</option></select>
+            <button class="preset-save-btn" onclick="saveTeamPreset('teamB')">💾 登録/上書き</button>
+            <button class="excel-import-btn" onclick="document.getElementById('teamB_excel_file').click()">📥 男子申込書Excel読込</button>
+            <input type="file" id="teamB_excel_file" accept=".xlsx, .xls" style="display:none;" onchange="importTeamExcel(event, 'teamB')">
+          </div>
+        </div>
+        <table><thead><tr><th>START</th><th>(C)</th><th>No.</th><th>NAME</th></tr></thead><tbody id="teamB_players"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-score" class="tab-content">
+    <div class="scoreboard">
+      <div class="team-info">
+        <div class="score-team-name" id="display_teamA">TEAM A</div>
+        <div class="team-sub-row">
+          <div class="timeout-container">
+            <button class="timeout-adj-btn" onclick="adjustTimeout('teamA', -1)">-</button>
+            <button class="timeout-btn" id="timeout_teamA" onclick="recordTimeout('teamA')">TO ( 0 / 残2 )</button>
+            <button class="timeout-adj-btn" onclick="adjustTimeout('teamA', 1)">+</button>
+          </div>
+          <button class="coach-tf-btn" id="coachTf_teamA" onclick="recordCoachTF('teamA')">C-TF ( 0 )</button>
+        </div>
+        <div class="team-foul-box" id="teamFoul_teamA">TEAM FOUL : 0</div>
+      </div>
+      
+      <div class="score-center">
+        <div class="score-display">
+          <span class="score-num" id="scoreA">0</span><span class="score-divider">-</span><span class="score-num" id="scoreB">0</span>
+        </div>
+        <div class="quarter-display-box" id="quarterDisplay">1st Q</div>
+        <div class="quarter-controls">
+          <button class="q-ctrl-btn" onclick="prevQuarter()">⬅ 前のQ</button>
+          <button class="q-ctrl-btn" onclick="nextQuarter()">次のQ ➡</button>
+          <button class="q-ctrl-btn ot-action" onclick="startOvertime()">＋ 延長(OT)</button>
+          <button class="q-ctrl-btn end-action" onclick="endMatch()">🏁 試合終了</button>
+        </div>
+      </div>
+
+      <div class="team-info">
+        <div class="score-team-name" id="display_teamB">TEAM B</div>
+        <div class="team-sub-row">
+          <div class="timeout-container">
+            <button class="timeout-adj-btn" onclick="adjustTimeout('teamB', -1)">-</button>
+            <button class="timeout-btn" id="timeout_teamB" onclick="recordTimeout('teamB')">TO ( 0 / 残2 )</button>
+            <button class="timeout-adj-btn" onclick="adjustTimeout('teamB', 1)">+</button>
+          </div>
+          <button class="coach-tf-btn" id="coachTf_teamB" onclick="recordCoachTF('teamB')">C-TF ( 0 )</button>
+        </div>
+        <div class="team-foul-box" id="teamFoul_teamB">TEAM FOUL : 0</div>
+      </div>
+    </div>
+
+    <div class="action-area">
+      <div class="history-box" id="historyA"><div class="history-title">PLAY LOG</div></div>
+      <div class="player-list" id="active_players_A"></div>
+      
+      <div class="center-actions">
+        <button class="action-btn btn-score-1" onclick="recordAction('1点')">+ 1 PT (FT)</button>
+        <button class="action-btn btn-score-2" onclick="recordAction('2点')">+ 2 PTS</button>
+        <button class="action-btn btn-score-3" onclick="recordAction('3点')">+ 3 PTS</button>
+        <button class="action-btn btn-foul" onclick="recordAction('ファウル')">FOUL (個人)</button>
+        <button class="action-btn btn-foul" style="font-size: 14px; padding: 8px; color: #ffaa00; border-color: rgba(255,170,0,0.3);" onclick="recordAction('TF')">テクニカル (TF)</button>
+        <button class="action-btn btn-foul" style="font-size: 14px; padding: 8px; color: #ff00ff; border-color: rgba(255,0,255,0.3);" onclick="recordAction('UF')">アンスポーツマン (UF)</button>
+        <button class="action-btn btn-sub" onclick="openSubModal()">⇄ 複数名 選手交代</button>
+        <button class="action-btn btn-undo" onclick="undoLastAction()">↩ 直前を戻す</button>
+      </div>
+
+      <div class="player-list" id="active_players_B"></div>
+      <div class="history-box" id="historyB"><div class="history-title">PLAY LOG</div></div>
+    </div>
+  </div>
+
+  <div id="tab-history" class="tab-content"><div id="history_list" class="history-list-container"></div></div>
+
+  <div class="modal-overlay" id="subModal">
+    <div class="modal-content">
+      <h3>選手交代 (複数名一括対応)</h3>
+      <p id="sub_target_text" style="font-size: 13px; color: var(--text-sub); margin-bottom: 10px;"></p>
+      <div style="font-size: 12px; color: var(--accent-orange); margin-bottom: 5px; text-align: left; font-weight: bold;">【IN するベンチメンバーを選択】</div>
+      <div class="bench-list" id="bench_players_list"></div>
+      <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+        <button class="preset-save-btn" onclick="executeBatchSubstitution()" style="padding: 8px 20px;">🔄 選択したメンバーと一括交代</button>
+        <button class="cancel-btn" onclick="closeModal()">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="boxScoreModal">
+    <div class="modal-content" id="boxScorePrintArea">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; border-bottom: 2px solid var(--panel-border); padding-bottom: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+              <h2 id="bs_title" style="margin: 0; font-family: 'Oswald', sans-serif; font-size: 13px; color: #fff;">GAME REPORT / BOX SCORE【男子】</h2>
+              <div style="font-size: 10px; color: var(--accent-orange); display: flex; align-items: center; gap: 3px;">
+                  <span>試合No:</span>
+                  <input type="text" id="bs_game_number_input" style="background: rgba(0,0,0,0.5); border: 1px solid var(--panel-border); color: #fff; padding: 2px 4px; border-radius: 4px; font-size: 10px; width: 60px; text-align: center;" placeholder="例: M-01" oninput="saveCurrentGameReport()">
+              </div>
+          </div>
+          <div style="display: flex; gap: 6px;">
+              <button class="action-btn btn-score-3" onclick="downloadBoxScorePDF()" id="btn_download_pdf" style="padding: 4px 8px; font-size: 10px; background: var(--accent-orange); color:#000;">📥 A4縦 PDF保存</button>
+              <button class="action-btn btn-score-2" onclick="window.print()" id="btn_print" style="padding: 4px 8px; font-size: 10px;">🖨️ 印刷</button>
+          </div>
+      </div>
+      <div id="bs_q_summary" style="background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); padding: 4px; border-radius: 4px; margin-bottom: 4px; font-family: 'Oswald', sans-serif; font-size: 11px; text-align: center;"></div>
+      <div id="bs_content" style="display: flex; flex-direction: column; gap: 4px; text-align: left; margin-bottom: 4px; color: #fff;"></div>
+      <div class="game-report-box" id="report_container_box">
+        <div class="game-report-title">
+          <span>📝 戦評 (GAME REPORT)</span>
+          <button class="auto-gen-btn" onclick="generateAutoGameReport()">🤖 プレイログから戦評を自動生成</button>
+        </div>
+        <textarea id="game_report_input" class="game-report-textarea" placeholder="自動生成ボタンを押すか、ここに直接入力してください。" oninput="saveCurrentGameReport()"></textarea>
+        <div class="report-save-info" id="report_save_status">入力内容は自動保存されます</div>
+      </div>
+      <div style="margin-top: 6px;">
+        <button class="cancel-btn" onclick="closeBoxScoreModal()" style="width:100%; padding:6px; font-size:11px;" id="btn_close_bs">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCYlGvxSCWqutEU8fTO_llGzy-TKUiDNwc",
+      authDomain: "basketballscoreapp.firebaseapp.com",
+      databaseURL: "https://basketballscoreapp-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "basketballscoreapp",
+      storageBucket: "basketballscoreapp.firebasestorage.app",
+      messagingSenderId: "527973469371",
+      appId: "1:527973469371:web:cf717cefaa3af20e03ed9e"
+    };
+
+    const MENS_DB_KEY = 'bball_mens_teams_db';
+    const MENS_HISTORY_KEY = 'bball_mens_match_history';
+
+    let firebaseApp = null;
+    let database = null;
+    let currentViewingMatchId = null; 
+    let liveGameReport = "";
+    let liveGameNumber = "";
+
+    function setSyncBadge(isOk, message) {
+      const badge = document.getElementById('sync_status_badge');
+      if(badge) {
+        if(isOk) {
+          badge.className = "status-indicator online";
+          badge.innerText = "🟢 クラウド同期(男子): " + message;
+        } else {
+          badge.className = "status-indicator error";
+          badge.innerText = "🔴 送信エラー: " + message;
+        }
+      }
+    }
+
+    function initFirebase() {
+      try {
+        if(!firebaseApp && typeof firebase !== 'undefined' && firebase.apps.length === 0) {
+          firebaseApp = firebase.initializeApp(firebaseConfig);
+          database = firebase.database();
+          database.ref('.info/connected').on('value', (snap) => {
+            if (snap.val() === true) setSyncBadge(true, "接続完了");
+            else setSyncBadge(false, "接続待機中...");
+          });
+        }
+      } catch (e) {
+        setSyncBadge(false, "初期化失敗: " + e.message);
+      }
+    }
+
+    function updateTeamNamesFromInputs() {
+      let tA = document.getElementById('teamA_name').value.trim();
+      let tB = document.getElementById('teamB_name').value.trim();
+      if (tA) document.getElementById('display_teamA').innerText = tA;
+      if (tB) document.getElementById('display_teamB').innerText = tB;
+    }
+
+    function sendScoreToFirebase() {
+      let courtSelectObj = document.getElementById('admin_court_select');
+      if(!courtSelectObj) return;
+      let courtId = courtSelectObj.value;
+      let courtName = courtSelectObj.options[courtSelectObj.selectedIndex].text;
+      let courtLabel = document.getElementById('current_court_label');
+      if(courtLabel) courtLabel.innerText = courtName;
+
+      let nameA = document.getElementById('teamA_name').value.trim() || document.getElementById('display_teamA').innerText || "TEAM A";
+      let nameB = document.getElementById('teamB_name').value.trim() || document.getElementById('display_teamB').innerText || "TEAM B";
+
+      if(database) {
+        database.ref('courts_mens/' + courtId).set({
+          teamA_name: nameA,
+          teamB_name: nameB,
+          scoreA: totalScoreA || 0,
+          scoreB: totalScoreB || 0,
+          quarter: document.getElementById('quarterDisplay').innerText || "1st Q",
+          timeoutA: timeoutCounts['teamA'] || 0,
+          timeoutB: timeoutCounts['teamB'] || 0,
+          foulA: teamFouls['teamA'] || 0,
+          foulB: teamFouls['teamB'] || 0
+        }).then(() => {
+          setSyncBadge(true, "送信成功 (" + new Date().toLocaleTimeString() + ")");
+        }).catch((err) => {
+          setSyncBadge(false, "書き込み拒否");
+        });
+      }
+    }
+
+    function handleCaptainChange(teamId, selectedIndex) {
+      for(let i = 1; i <= 15; i++) {
+        let radio = document.getElementById(`${teamId}_captain_${i}`);
+        if(i !== selectedIndex && radio) radio.checked = false;
+      }
+    }
+
+    function saveTeamPreset(teamId) {
+      let teamName = document.getElementById(`${teamId}_name`).value.trim();
+      if (!teamName) { alert("チーム名を入力してください！"); return; }
+      let players = [];
+      for(let i = 1; i <= 15; i++) {
+        players.push({
+          num: document.getElementById(`${teamId}_number_${i}`).value,
+          name: document.getElementById(`${teamId}_name_${i}`).value,
+          isStarter: document.getElementById(`${teamId}_starter_${i}`).checked,
+          isCaptain: document.getElementById(`${teamId}_captain_${i}`).checked
+        });
+      }
+      let savedTeams = JSON.parse(localStorage.getItem(MENS_DB_KEY) || '{}');
+      savedTeams[teamName] = players;
+      localStorage.setItem(MENS_DB_KEY, JSON.stringify(savedTeams));
+      alert(`「${teamName}」を男子用DBに保存しました！`); updatePresetDropdowns();
+    }
+
+    function loadTeamPreset(teamId) {
+      let selectBox = document.getElementById(`${teamId}_preset`);
+      let selectedTeamName = selectBox.value;
+      if (!selectedTeamName) return;
+      let savedTeams = JSON.parse(localStorage.getItem(MENS_DB_KEY) || '{}');
+      let players = savedTeams[selectedTeamName];
+      if (players) {
+        document.getElementById(`${teamId}_name`).value = selectedTeamName;
+        for(let i = 1; i <= 15; i++) {
+          if (players[i-1]) {
+            document.getElementById(`${teamId}_number_${i}`).value = players[i-1].num;
+            document.getElementById(`${teamId}_name_${i}`).value = players[i-1].name;
+            document.getElementById(`${teamId}_starter_${i}`).checked = players[i-1].isStarter;
+            let capRadio = document.getElementById(`${teamId}_captain_${i}`);
+            if(capRadio) capRadio.checked = players[i-1].isCaptain;
+          }
+        }
+        updateTeamNamesFromInputs();
+      }
+      selectBox.value = "";
+    }
+
+    function importTeamExcel(event, teamId) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+          let parsedTeamName = "";
+          let playerList = [];
+
+          for (let r = 0; r < rows.length; r++) {
+            const row = rows[r];
+            if (!row || row.length === 0) continue;
+
+            for (let c = 0; c < row.length; c++) {
+              const val = String(row[c]).trim();
+              if (val === "チーム名" && row[c + 1]) {
+                parsedTeamName = String(row[c + 1]).trim();
+              }
+            }
+
+            const col0 = String(row[0] || "").trim();
+            const col1 = String(row[1] || "").trim();
+
+            let numVal = null;
+            let nameVal = "";
+
+            if (!isNaN(col0) && col0 !== "" && row[2]) {
+              numVal = parseInt(col0, 10);
+              nameVal = String(row[2] || "").trim();
+            } else if (!isNaN(col1) && col1 !== "" && row[2]) {
+              numVal = parseInt(col1, 10);
+              nameVal = String(row[2] || "").trim();
+            }
+
+            if (numVal !== null && nameVal && nameVal !== "選手名" && nameVal !== "氏名") {
+              playerList.push({ num: numVal, name: nameVal });
+            }
+          }
+
+          if (parsedTeamName) {
+            document.getElementById(`${teamId}_name`).value = parsedTeamName;
+          }
+
+          for (let i = 1; i <= 15; i++) {
+            const numInput = document.getElementById(`${teamId}_number_${i}`);
+            const nameInput = document.getElementById(`${teamId}_name_${i}`);
+            const starterChk = document.getElementById(`${teamId}_starter_${i}`);
+
+            if (playerList[i - 1]) {
+              if (numInput) numInput.value = playerList[i - 1].num;
+              if (nameInput) nameInput.value = playerList[i - 1].name;
+            } else {
+              if (numInput) numInput.value = "";
+              if (nameInput) nameInput.value = "";
+              if (starterChk) starterChk.checked = false;
+            }
+          }
+
+          updateTeamNamesFromInputs();
+          alert(`男子申込書「${parsedTeamName || '申込書'}」を読み込みました！（${playerList.length}名登録）`);
+        } catch (err) {
+          alert("Excelファイルの読み込みに失敗しました。男子用申込書か確認してください。");
+        }
+        event.target.value = "";
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function updatePresetDropdowns() {
+      let savedTeams = JSON.parse(localStorage.getItem(MENS_DB_KEY) || '{}');
+      let optionsHtml = `<option value="">📂 登録チームを呼出...</option>`;
+      for (let teamName in savedTeams) optionsHtml += `<option value="${teamName}">${teamName}</option>`;
+      let presetA = document.getElementById('teamA_preset');
+      let presetB = document.getElementById('teamB_preset');
+      if(presetA) presetA.innerHTML = optionsHtml; 
+      if(presetB) presetB.innerHTML = optionsHtml;
+    }
+
+    function createPlayerRows(teamId) {
+      let html = '';
+      for(let i = 1; i <= 15; i++) {
+        let isStarter = i <= 5 ? 'checked' : '';
+        let isCaptain = i === 4 ? 'checked' : '';
+        html += `<tr>
+          <td><input type="checkbox" id="${teamId}_starter_${i}" ${isStarter}></td>
+          <td><input type="radio" name="${teamId}_captain_group" id="${teamId}_captain_${i}" ${isCaptain} onchange="handleCaptainChange('${teamId}', ${i})"></td>
+          <td><input type="number" id="${teamId}_number_${i}" value="${i+3}"></td>
+          <td><input type="text" id="${teamId}_name_${i}" value="選手${i}"></td>
+        </tr>`;
+      }
+      return html;
+    }
+
+    let totalScoreA = 0; let totalScoreB = 0; let selectedPlayers = [];
+    let timeoutCounts = { teamA: 0, teamB: 0 }; let teamFouls = { teamA: 0, teamB: 0 };
+    let coachTfCounts = { teamA: 0, teamB: 0 };
+    let currentQuarter = 1; let overtimeCount = 0; let isMatchEnded = false;
+    let actionStack = []; let playerFouls = {}; let playerTfs = {}; let playerUfs = {};
+    
+    for(let i = 1; i <= 15; i++) { 
+      playerFouls[`teamA_${i}`] = 0; playerFouls[`teamB_${i}`] = 0; 
+      playerTfs[`teamA_${i}`] = 0; playerTfs[`teamB_${i}`] = 0; 
+      playerUfs[`teamA_${i}`] = 0; playerUfs[`teamB_${i}`] = 0; 
+    }
+
+    window.onload = function() {
+      let tA = document.getElementById('teamA_players');
+      let tB = document.getElementById('teamB_players');
+      if(tA) tA.innerHTML = createPlayerRows('teamA'); 
+      if(tB) tB.innerHTML = createPlayerRows('teamB');
+      updatePresetDropdowns(); 
+      initFirebase();
+      updateTimeoutDisplay('teamA');
+      updateTimeoutDisplay('teamB');
+    };
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      let targetBtn = document.getElementById('btn-' + tabId);
+      let targetContent = document.getElementById(tabId);
+      if(targetBtn) targetBtn.classList.add('active'); 
+      if(targetContent) targetContent.classList.add('active');
+
+      if(tabId === 'tab-score') {
+        updateTeamNamesFromInputs();
+        generateActivePlayers('teamA', 'active_players_A'); 
+        generateActivePlayers('teamB', 'active_players_B');
+        selectedPlayers = []; 
+        sendScoreToFirebase();
+      }
+      if(tabId === 'tab-history') renderHistory();
+    }
+
+    function generateActivePlayers(teamId, targetId) {
+      let html = '';
+      for(let i = 1; i <= 15; i++) {
+        let checkbox = document.getElementById(`${teamId}_starter_${i}`);
+        if(checkbox && checkbox.checked) {
+          let num = document.getElementById(`${teamId}_number_${i}`).value; 
+          let name = document.getElementById(`${teamId}_name_${i}`).value || "名無し";
+          let isCap = document.getElementById(`${teamId}_captain_${i}`).checked;
+          let displayName = isCap ? `${name} (C)` : name;
+          let pFouls = playerFouls[`${teamId}_${i}`];
+          let pTf = playerTfs[`${teamId}_${i}`];
+          let pUf = playerUfs[`${teamId}_${i}`];
+          let isSelected = selectedPlayers.some(p => p.team === teamId && p.index === i);
+          
+          let statusClass = isSelected ? 'selected' : (pFouls === 4 ? 'danger' : (pFouls >= 5 || pTf >= 2 || pUf >= 2 ? 'fouled-out' : ''));
+          
+          html += `<div class="player-btn ${statusClass}" id="btn_${teamId}_${i}" onclick="toggleSelectPlayer('${teamId}', ${i}, '${num}', '${name}')">
+            <div class="player-number">${num}</div>
+            <div class="player-name">${displayName}</div>
+            <div class="player-foul-badge">
+              <span>F:${pFouls}</span>
+              ${pTf > 0 ? `<span style="color:#ffaa00;">TF:${pTf}</span>` : ''}
+              ${pUf > 0 ? `<span style="color:#ff00ff;">UF:${pUf}</span>` : ''}
+            </div>
+          </div>`;
+        }
+      }
+      let targetEl = document.getElementById(targetId);
+      if(targetEl) targetEl.innerHTML = html;
+    }
+
+    function toggleSelectPlayer(team, index, number, name) {
+      if (selectedPlayers.length > 0 && selectedPlayers[0].team !== team) {
+        selectedPlayers = [];
+      }
+      let existingIdx = selectedPlayers.findIndex(p => p.team === team && p.index === index);
+      if (existingIdx > -1) {
+        selectedPlayers.splice(existingIdx, 1);
+      } else {
+        selectedPlayers.push({ team: team, index: index, number: number, name: name });
+      }
+      generateActivePlayers('teamA', 'active_players_A');
+      generateActivePlayers('teamB', 'active_players_B');
+    }
+
+    function nextQuarter() {
+      if (isMatchEnded) return; 
+      if (overtimeCount > 0) { alert("延長戦中です。"); return; }
+      if (currentQuarter < 4) { currentQuarter++; } 
+      else { alert("すでに4Qです。"); return; }
+      updateQuarterDisplay();
+    }
+
+    function prevQuarter() {
+      if (isMatchEnded) {
+        isMatchEnded = false;
+        updateQuarterDisplay();
+        return;
+      }
+      if (overtimeCount > 0) {
+        overtimeCount--;
+        updateQuarterDisplay();
+        return;
+      }
+      if (currentQuarter > 1) {
+        currentQuarter--;
+        updateQuarterDisplay();
+      } else {
+        alert("これ以上前のQには戻せません。");
+      }
+    }
+    
+    function startOvertime() { if (isMatchEnded) return; overtimeCount++; updateQuarterDisplay(); }
+    function endMatch() { isMatchEnded = true; updateQuarterDisplay(); }
+
+    function updateQuarterDisplay() {
+      let qText = ""; let displayBox = document.getElementById('quarterDisplay');
+      if (isMatchEnded) { qText = "試合終了"; if(displayBox) displayBox.classList.add('finished'); } 
+      else if (overtimeCount > 0) { qText = "OT" + (overtimeCount > 1 ? overtimeCount : ""); if(displayBox) displayBox.classList.remove('finished'); } 
+      else { 
+        qText = currentQuarter + "st Q"; 
+        if (currentQuarter === 2) qText = "2nd Q"; 
+        if (currentQuarter === 3) qText = "3rd Q"; 
+        if (currentQuarter === 4) qText = "4th Q"; 
+        if(displayBox) displayBox.classList.remove('finished'); 
+      }
+      if(displayBox) displayBox.innerText = qText; 
+      teamFouls = { teamA: 0, teamB: 0 }; 
+      updateTeamFoulDisplay('teamA'); 
+      updateTeamFoulDisplay('teamB');
+      updateTimeoutDisplay('teamA');
+      updateTimeoutDisplay('teamB');
+      
+      let logHtml = `<div class="history-item quarter-log">🏁 ${qText}開始</div>`;
+      let hA = document.getElementById('historyA');
+      let hB = document.getElementById('historyB');
+      if(hA) hA.insertAdjacentHTML('beforeend', logHtml); 
+      if(hB) hB.insertAdjacentHTML('beforeend', logHtml);
+      sendScoreToFirebase();
+    }
+
+    function updateTeamFoulDisplay(teamId) {
+      let count = teamFouls[teamId]; let box = document.getElementById(`teamFoul_${teamId}`);
+      if(box) {
+        box.innerText = `TEAM FOUL : ${count}`; 
+        count >= 5 ? box.classList.add('penalty') : box.classList.remove('penalty');
+      }
+    }
+
+    function getMaxTimeoutAllowed() {
+      if (overtimeCount > 0) return 1;
+      if (currentQuarter <= 2) return 2;
+      return 3;
+    }
+
+    function recordTimeout(teamId) {
+      let maxAllowed = getMaxTimeoutAllowed();
+      if (timeoutCounts[teamId] >= maxAllowed) {
+        let periodName = (overtimeCount > 0) ? "延長戦" : (currentQuarter <= 2 ? "前半" : "後半");
+        alert(`${periodName}で取得できるタイムアウトは最大${maxAllowed}回までです！`);
+        return;
+      }
+      timeoutCounts[teamId]++;
+      updateTimeoutDisplay(teamId);
+      sendScoreToFirebase();
+    }
+
+    function adjustTimeout(teamId, delta) {
+      let maxAllowed = getMaxTimeoutAllowed();
+      let newCount = timeoutCounts[teamId] + delta;
+      if (newCount < 0) newCount = 0;
+      if (newCount > maxAllowed) newCount = maxAllowed;
+      timeoutCounts[teamId] = newCount;
+      updateTimeoutDisplay(teamId);
+      sendScoreToFirebase();
+    }
+
+    function updateTimeoutDisplay(teamId) {
+      let maxAllowed = getMaxTimeoutAllowed();
+      let btn = document.getElementById(`timeout_${teamId}`);
+      if(btn) {
+        btn.innerText = `TO ( ${timeoutCounts[teamId]} / 残${maxAllowed - timeoutCounts[teamId]} )`;
+      }
+    }
+
+    function recordCoachTF(teamId) {
+      coachTfCounts[teamId]++;
+      let btn = document.getElementById(`coachTf_${teamId}`);
+      if(btn) btn.innerText = `C-TF ( ${coachTfCounts[teamId]} )`;
+
+      let logId = 'log_' + Date.now();
+      let historyBox = document.getElementById(teamId === 'teamA' ? 'historyA' : 'historyB');
+      let qEl = document.getElementById('quarterDisplay');
+      let qDisplay = qEl ? qEl.innerText : '1st Q';
+
+      if(historyBox) {
+        historyBox.insertAdjacentHTML('beforeend', `<div class="history-item" id="${logId}"><div class="history-item-content"><span>[コーチ] テクニカルファウル</span> <span class="foul" style="color:#ffaa00;">C-TF #${coachTfCounts[teamId]}</span></div><button class="delete-log-btn" onclick="deleteSpecificLog('${logId}')">✖</button></div>`);
+        historyBox.scrollTop = historyBox.scrollHeight;
+      }
+
+      actionStack.push({ id: logId, team: teamId, isCoachTf: true, quarter: qDisplay });
+      sendScoreToFirebase();
+    }
+
+    function recordAction(actionType) {
+      if (isMatchEnded) return; 
+      if (selectedPlayers.length === 0) { alert("プレイヤーを1名以上選択してください！"); return; }
+      
+      let targetPlayer = selectedPlayers[0];
+      let pKey = `${targetPlayer.team}_${targetPlayer.index}`;
+      
+      let points = 0; let logStyle = "point"; let logText = actionType; let isEjected = false;
+      
+      if (actionType === '1点') { points = 1; logText = "+1 PT"; } 
+      if (actionType === '2点') { points = 2; logText = "+2 PTS"; } 
+      if (actionType === '3点') { points = 3; logText = "+3 PTS"; }
+      
+      if (actionType === 'ファウル') { 
+        logStyle = "foul"; 
+        logText = "FOUL"; 
+        teamFouls[targetPlayer.team]++; 
+        updateTeamFoulDisplay(targetPlayer.team); 
+        playerFouls[pKey]++; 
+        if (playerFouls[pKey] >= 5) isEjected = true; 
+      }
+      
+      if (actionType === 'TF') {
+        logStyle = "foul";
+        logText = "テクニカル(TF)";
+        playerTfs[pKey]++;
+        if (playerTfs[pKey] >= 2) isEjected = true;
+      }
+
+      if (actionType === 'UF') {
+        logStyle = "foul";
+        logText = "アンスポーツマン(UF)";
+        playerUfs[pKey]++;
+        if (playerUfs[pKey] >= 2) isEjected = true;
+      }
+      
+      if (points > 0) { 
+        if (targetPlayer.team === 'teamA') { 
+          totalScoreA += points; 
+          let sA = document.getElementById('scoreA');
+          if(sA) sA.innerText = totalScoreA; 
+        } else { 
+          totalScoreB += points; 
+          let sB = document.getElementById('scoreB');
+          if(sB) sB.innerText = totalScoreB; 
+        } 
+      }
+      
+      let logId = 'log_' + Date.now(); 
+      let historyBox = document.getElementById(targetPlayer.team === 'teamA' ? 'historyA' : 'historyB');
+      let logColor = actionType === '3点' ? 'var(--accent-orange)' : (actionType === '2点' ? 'var(--accent-cyan)' : (actionType === 'TF' ? '#ffaa00' : (actionType === 'UF' ? '#ff00ff' : '#fff')));
+      let inlineStyle = logColor ? `style="color:${logColor};"` : '';
+      
+      if(historyBox) {
+        historyBox.insertAdjacentHTML('beforeend', `<div class="history-item" id="${logId}"><div class="history-item-content"><span>[${targetPlayer.number}] ${targetPlayer.name}</span> <span class="${logStyle}" ${inlineStyle}>${logText}</span></div><button class="delete-log-btn" onclick="deleteSpecificLog('${logId}')">✖</button></div>`);
+        historyBox.scrollTop = historyBox.scrollHeight;
+      }
+      
+      let qEl = document.getElementById('quarterDisplay');
+      let qDisplay = qEl ? qEl.innerText : '1st Q';
+      if (qDisplay === '試合終了') qDisplay = '4th Q';
+      
+      actionStack.push({ 
+        id: logId, team: targetPlayer.team, pKey: pKey, points: points, 
+        isFoul: actionType === 'ファウル', isTf: actionType === 'TF', isUf: actionType === 'UF', quarter: qDisplay 
+      });
+      
+      generateActivePlayers('teamA', 'active_players_A'); 
+      generateActivePlayers('teamB', 'active_players_B');
+      
+      if (isEjected) {
+        alert(`[${targetPlayer.number}] ${targetPlayer.name} が退場条件に達しました。`);
+        openSubModal();
+      } else {
+        selectedPlayers = [];
+      }
+      sendScoreToFirebase();
+    }
+
+    function deleteSpecificLog(logId) {
+      let index = actionStack.findIndex(action => action.id === logId); 
+      if (index === -1) return; 
+      let targetAction = actionStack[index];
+
+      if (targetAction.isCoachTf) {
+        coachTfCounts[targetAction.team] = Math.max(0, coachTfCounts[targetAction.team] - 1);
+        let btn = document.getElementById(`coachTf_${targetAction.team}`);
+        if(btn) btn.innerText = `C-TF ( ${coachTfCounts[targetAction.team]} )`;
+      }
+
+      if (targetAction.points > 0) { 
+        if (targetAction.team === 'teamA') { 
+          totalScoreA -= targetAction.points; 
+          let sA = document.getElementById('scoreA');
+          if(sA) sA.innerText = totalScoreA; 
+        } else { 
+          totalScoreB -= targetAction.points; 
+          let sB = document.getElementById('scoreB');
+          if(sB) sB.innerText = totalScoreB; 
+        } 
+      }
+      if (targetAction.isFoul) { 
+        teamFouls[targetAction.team] = Math.max(0, teamFouls[targetAction.team] - 1); 
+        updateTeamFoulDisplay(targetAction.team); 
+        playerFouls[targetAction.pKey] = Math.max(0, playerFouls[targetAction.pKey] - 1); 
+      }
+      if (targetAction.isTf) {
+        playerTfs[targetAction.pKey] = Math.max(0, playerTfs[targetAction.pKey] - 1);
+      }
+      if (targetAction.isUf) {
+        playerUfs[targetAction.pKey] = Math.max(0, playerUfs[targetAction.pKey] - 1);
+      }
+
+      let logElement = document.getElementById(logId); if (logElement) logElement.remove(); actionStack.splice(index, 1);
+      generateActivePlayers('teamA', 'active_players_A'); generateActivePlayers('teamB', 'active_players_B'); sendScoreToFirebase();
+    }
+
+    function undoLastAction() { if (actionStack.length > 0) deleteSpecificLog(actionStack[actionStack.length - 1].id); }
+    
+    function openSubModal() {
+      if (selectedPlayers.length === 0) {
+        alert("交代させるOUTプレイヤーを選択してください！");
+        return;
+      }
+      let teamId = selectedPlayers[0].team;
+      let outNames = selectedPlayers.map(p => `[${p.number}] ${p.name}`).join(', ');
+      let subText = document.getElementById('sub_target_text');
+      if(subText) subText.innerText = `OUT 🔽 ${outNames}`;
+
+      let benchHtml = '';
+      for(let i = 1; i <= 15; i++) {
+        let checkbox = document.getElementById(`${teamId}_starter_${i}`);
+        if(checkbox && !checkbox.checked) {
+          let num = document.getElementById(`${teamId}_number_${i}`).value; 
+          let name = document.getElementById(`${teamId}_name_${i}`).value;
+          let pKey = `${teamId}_${i}`;
+          if (playerFouls[pKey] >= 5 || playerTfs[pKey] >= 2 || playerUfs[pKey] >= 2) { 
+            benchHtml += `<div class="bench-item" style="opacity: 0.4;"><span>[${num}] ${name} (退場)</span></div>`; 
+          } else { 
+            benchHtml += `<label class="bench-item">
+              <span>[${num}] ${name}</span>
+              <input type="checkbox" class="bench-in-chk" value="${i}" style="transform:scale(1.2);">
+            </label>`; 
+          }
+        }
+      }
+      let benchList = document.getElementById('bench_players_list');
+      if(benchList) benchList.innerHTML = benchHtml; 
+      let subModal = document.getElementById('subModal');
+      if(subModal) subModal.style.display = 'flex';
+    }
+
+    function closeModal() { 
+      let subModal = document.getElementById('subModal'); 
+      if(subModal) subModal.style.display = 'none'; 
+    }
+
+    function executeBatchSubstitution() {
+      let checkedIn = document.querySelectorAll('.bench-in-chk:checked');
+      if (checkedIn.length === 0) {
+        alert("INする選手が選択されていません。");
+        return;
+      }
+      if (checkedIn.length !== selectedPlayers.length) {
+        if(!confirm(`OUTする人数(${selectedPlayers.length}名)とINする人数(${checkedIn.length}名)が一致しませんがよろしいですか？`)) {
+          return;
+        }
+      }
+
+      let teamId = selectedPlayers[0].team;
+
+      selectedPlayers.forEach(sp => {
+        let outChk = document.getElementById(`${teamId}_starter_${sp.index}`);
+        if(outChk) outChk.checked = false;
+      });
+
+      checkedIn.forEach(chk => {
+        let inIndex = chk.value;
+        let inChk = document.getElementById(`${teamId}_starter_${inIndex}`);
+        if(inChk) inChk.checked = true;
+      });
+
+      generateActivePlayers('teamA', 'active_players_A'); 
+      generateActivePlayers('teamB', 'active_players_B'); 
+      closeModal(); 
+      selectedPlayers = [];
+    }
+
+    function getAggregatedCurrentStats() {
+      let stats = { teamA: [], teamB: [] };
+      let qFouls = { teamA: {}, teamB: {} };
+      let qScores = { teamA: { '1st Q': 0, '2nd Q': 0, '3rd Q': 0, '4th Q': 0 }, teamB: { '1st Q': 0, '2nd Q': 0, '3rd Q': 0, '4th Q': 0 } };
+      
+      actionStack.forEach(a => {
+          let q = a.quarter || '1st Q';
+          if (a.isFoul) qFouls[a.team][q] = (qFouls[a.team][q] || 0) + 1;
+          if (a.points > 0) {
+              if (!qScores[a.team][q]) qScores[a.team][q] = 0;
+              qScores[a.team][q] += a.points;
+          }
+      });
+
+      ['teamA', 'teamB'].forEach(team => {
+        for(let i = 1; i <= 15; i++) {
+          let pKey = `${team}_${i}`;
+          let pts1 = actionStack.filter(a => a.pKey === pKey && a.points === 1).length;
+          let pts2 = actionStack.filter(a => a.pKey === pKey && a.points === 2).length;
+          let pts3 = actionStack.filter(a => a.pKey === pKey && a.points === 3).length;
+          let stEl = document.getElementById(`${team}_starter_${i}`);
+          let capEl = document.getElementById(`${team}_captain_${i}`);
+          let isStarter = stEl ? stEl.checked : false;
+          let isCaptain = capEl ? capEl.checked : false;
+          let numEl = document.getElementById(`${team}_number_${i}`);
+          let nameEl = document.getElementById(`${team}_name_${i}`);
+
+          stats[team].push({ 
+              num: numEl ? numEl.value : i, 
+              name: nameEl ? nameEl.value : `選手${i}`, 
+              isStarter: isStarter,
+              isCaptain: isCaptain,
+              pts1: pts1, pts2: pts2, pts3: pts3,
+              pts: pts1 + (pts2 * 2) + (pts3 * 3), 
+              fouls: playerFouls[pKey] || 0,
+              tf: playerTfs[pKey] || 0,
+              uf: playerUfs[pKey] || 0
+          });
+        }
+      });
+      return { stats: stats, qFouls: qFouls, qScores: qScores };
+    }
+
+    function confirmReset() {
+      if(confirm("現在の男子試合結果を保存して新しく始めますか？")) {
+        let aggregated = getAggregatedCurrentStats();
+        let matches = JSON.parse(localStorage.getItem(MENS_HISTORY_KEY) || '[]');
+        let tAName = document.getElementById('display_teamA');
+        let tBName = document.getElementById('display_teamB');
+        let gNumInput = document.getElementById('bs_game_number_input');
+        
+        matches.push({ 
+          id: Date.now(), 
+          date: new Date().toLocaleString('ja-JP'), 
+          gameNumber: gNumInput ? gNumInput.value : liveGameNumber,
+          teamA: tAName ? tAName.innerText : 'TEAM A', 
+          teamB: tBName ? tBName.innerText : 'TEAM B', 
+          scoreA: totalScoreA, scoreB: totalScoreB, 
+          stats: aggregated.stats, 
+          qFouls: aggregated.qFouls,
+          qScores: aggregated.qScores,
+          coachTf: coachTfCounts,
+          gameReport: liveGameReport 
+        });
+        localStorage.setItem(MENS_HISTORY_KEY, JSON.stringify(matches)); 
+        location.reload();
+      }
+    }
+    
+    function deleteMatch(matchId) { 
+      if (confirm("削除しますか？")) { 
+        let matches = JSON.parse(localStorage.getItem(MENS_HISTORY_KEY) || '[]'); 
+        localStorage.setItem(MENS_HISTORY_KEY, JSON.stringify(matches.filter(m => m.id !== matchId))); 
+        renderHistory(); 
+      } 
+    }
+    
+    function renderHistory() {
+      let matches = JSON.parse(localStorage.getItem(MENS_HISTORY_KEY) || '[]'); let html = '';
+      if(matches.length === 0) { html = '<p style="text-align:center;">男子の試合履歴はありません</p>'; } else {
+        [...matches].reverse().forEach(m => { 
+          let gNumDisplay = m.gameNumber ? `[試合No: ${m.gameNumber}] ` : '';
+          html += `<div class="history-card"><div><div class="history-date">📅 ${m.date}</div><div class="history-match"><span>${gNumDisplay}${m.teamA}</span> vs <span>${m.teamB}</span></div></div><div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;"><div class="history-score-hl">${m.scoreA} - ${m.scoreB}</div><div style="display:flex; gap:10px;">${m.stats ? `<button class="q-ctrl-btn ot-action" style="padding: 8px 15px;" onclick="showHistoryBoxScore(${m.id})">📊 ボックススコア & 戦評</button>` : ''}<button class="btn-delete-match" onclick="deleteMatch(${m.id})">🗑️ 削除</button></div></div></div>`; 
+        });
+      }
+      let hList = document.getElementById('history_list');
+      if(hList) hList.innerHTML = html;
+    }
+
+    function showCurrentBoxScore() {
+      currentViewingMatchId = null; 
+      let aggregated = getAggregatedCurrentStats();
+      let tAName = document.getElementById('display_teamA');
+      let tBName = document.getElementById('display_teamB');
+      renderBoxScoreModal("進行中の試合(男子)", tAName ? tAName.innerText : 'TEAM A', tBName ? tBName.innerText : 'TEAM B', aggregated.stats, aggregated.qFouls, aggregated.qScores, totalScoreA, totalScoreB, liveGameReport, liveGameNumber, coachTfCounts);
+    }
+
+    function showHistoryBoxScore(matchId) {
+      currentViewingMatchId = matchId; 
+      let m = JSON.parse(localStorage.getItem(MENS_HISTORY_KEY) || '[]').find(x => x.id === matchId); 
+      if(!m || !m.stats) return;
+      renderBoxScoreModal(m.date, m.teamA, m.teamB, m.stats, m.qFouls || {teamA:{}, teamB:{}}, m.qScores || {teamA:{}, teamB:{}}, m.scoreA, m.scoreB, m.gameReport || "", m.gameNumber || "", m.coachTf || {teamA:0, teamB:0});
+    }
+
+    function renderBoxScoreModal(titleText, teamAName, teamBName, stats, qFouls, qScores, scoreA, scoreB, reportText, gameNumberText, coachTfData) {
+      let bsTitle = document.getElementById('bs_title');
+      if(bsTitle) bsTitle.innerText = `【男子】${teamAName} vs ${teamBName} - 公式記録 & 戦評`;
+      
+      let gNumInput = document.getElementById('bs_game_number_input');
+      if(gNumInput) gNumInput.value = gameNumberText || "";
+      
+      let q1_A = qScores?.teamA?.['1st Q'] || 0, q1_B = qScores?.teamB?.['1st Q'] || 0;
+      let q2_A = qScores?.teamA?.['2nd Q'] || 0, q2_B = qScores?.teamB?.['2nd Q'] || 0;
+      let q3_A = qScores?.teamA?.['3rd Q'] || 0, q3_B = qScores?.teamB?.['3rd Q'] || 0;
+      let q4_A = qScores?.teamA?.['4th Q'] || 0, q4_B = qScores?.teamB?.['4th Q'] || 0;
+
+      let qSum = document.getElementById('bs_q_summary');
+      if(qSum) {
+        qSum.innerHTML = `
+          <span style="color:var(--accent-orange);">${teamAName}</span> <strong>${scoreA}</strong> 
+          <span style="color:var(--text-sub); margin:0 6px;">[ 1Q: ${q1_A}-${q1_B} | 2Q: ${q2_A}-${q2_B} | 3Q: ${q3_A}-${q3_B} | 4Q: ${q4_A}-${q4_B} ]</span> 
+          <strong>${scoreB}</strong> <span style="color:var(--accent-cyan);">${teamBName}</span>
+        `;
+      }
+
+      let bsContent = document.getElementById('bs_content');
+      if(bsContent) {
+        bsContent.innerHTML = 
+            generateDetailedBoxScoreTable(teamAName, stats.teamA, qFouls.teamA, scoreA, coachTfData.teamA || 0) + 
+            generateDetailedBoxScoreTable(teamBName, stats.teamB, qFouls.teamB, scoreB, coachTfData.teamB || 0);
+      }
+
+      let reportInput = document.getElementById('game_report_input');
+      if(reportInput) reportInput.value = reportText || "";
+      let rStatus = document.getElementById('report_save_status');
+      if(rStatus) rStatus.innerText = currentViewingMatchId ? "保存済みの戦評" : "入力内容は自動保存されます";
+
+      let bsModal = document.getElementById('boxScoreModal');
+      if(bsModal) bsModal.style.display = 'flex';
+    }
+
+    function generateAutoGameReport() {
+      let tAName = document.getElementById('display_teamA');
+      let tBName = document.getElementById('display_teamB');
+      let teamAName = tAName ? tAName.innerText : "チームA";
+      let teamBName = tBName ? tBName.innerText : "チームB";
+      let aggregated = getAggregatedCurrentStats();
+      let qScores = aggregated.qScores;
+
+      let q1A = qScores.teamA['1st Q'] || 0, q1B = qScores.teamB['1st Q'] || 0;
+      let q2A = qScores.teamA['2nd Q'] || 0, q2B = qScores.teamB['2nd Q'] || 0;
+
+      let halfA = q1A + q2A;
+      let halfB = q1B + q2B;
+
+      function getTopScorer(players) {
+        let sorted = [...players].sort((a,b) => b.pts - a.pts);
+        return sorted[0] && sorted[0].pts > 0 ? sorted[0] : null;
+      }
+
+      let topA = getTopScorer(aggregated.stats.teamA);
+      let topB = getTopScorer(aggregated.stats.teamB);
+
+      let winner = totalScoreA > totalScoreB ? teamAName : (totalScoreB > totalScoreA ? teamBName : "両チーム");
+
+      let report = `男子${teamAName}対${teamBName}の対戦。
+第1Qは${q1A >= q1B ? teamAName + 'がリード' : teamBName + 'が優勢'}となり${q1A}対${q1B}。前半を${halfA}対${halfB}で折り返しました。後半も攻防が続き、最終スコア${totalScoreA}対${totalScoreB}で${winner}が勝利を収めました。`;
+      
+      if (topA || topB) {
+        report += `
+個人の活躍では、`;
+        if (topA) report += `${teamAName}の#${topA.num} ${topA.name}（${topA.pts}得点）`;
+        if (topA && topB) report += `や`;
+        if (topB) report += `${teamBName}の#${topB.num} ${topB.name}（${topB.pts}得点）`;
+        report += `のプレーが光りました。`;
+      }
+
+      let reportInput = document.getElementById('game_report_input');
+      if(reportInput) reportInput.value = report;
+      saveCurrentGameReport();
+      alert("戦評文案を自動生成しました！");
+    }
+
+    function saveCurrentGameReport() {
+      let reportInput = document.getElementById('game_report_input');
+      let gNumInput = document.getElementById('bs_game_number_input');
+      let text = reportInput ? reportInput.value : '';
+      let gNum = gNumInput ? gNumInput.value : '';
+
+      if (currentViewingMatchId === null) {
+        liveGameReport = text;
+        liveGameNumber = gNum;
+      } else {
+        let matches = JSON.parse(localStorage.getItem(MENS_HISTORY_KEY) || '[]');
+        let target = matches.find(m => m.id === currentViewingMatchId);
+        if (target) {
+          target.gameReport = text;
+          target.gameNumber = gNum;
+          localStorage.setItem(MENS_HISTORY_KEY, JSON.stringify(matches));
+          let rStatus = document.getElementById('report_save_status');
+          if(rStatus) rStatus.innerText = "✅ 変更を保存しました";
+        }
+      }
+    }
+
+    function generateDetailedBoxScoreTable(teamName, players, teamQFouls, matchScore, coachTfCount) {
+      let qFoulTextArray = [];
+      ['1st Q', '2nd Q', '3rd Q', '4th Q'].forEach(q => {
+          if (teamQFouls && teamQFouls[q] !== undefined) qFoulTextArray.push(`${q.replace(' Q', '')}: ${teamQFouls[q]}`);
+          else qFoulTextArray.push(`${q.replace(' Q', '')}: 0`);
+      });
+      let qFoulHtml = qFoulTextArray.join(' <span style="color:var(--panel-border); margin: 0 3px;">|</span> ');
+
+      let html = `<div style="width:100%;"><h3 style="color:var(--accent-orange); border-bottom: 2px solid var(--accent-orange); padding-bottom:2px; margin:2px 0; font-size:11px;">${teamName} (C-TF: ${coachTfCount})</h3>`;
+      html += `<div style="font-family:'Oswald', sans-serif; font-size: 8px; background:rgba(255,42,42,0.1); border:1px solid rgba(255,42,42,0.3); padding:2px; border-radius:4px; margin-bottom:2px; text-align:center; color:var(--accent-red); font-weight:bold;">
+                  TEAM FOULS: <span style="color:#fff; font-size:9px;">${qFoulHtml}</span>
+               </div>`;
+
+      html += `<table class="bs-table" style="width:100%; text-align:center; border-collapse: collapse;">
+                <thead>
+                  <tr>
+                    <th style="width:8%;">No.</th>
+                    <th style="text-align:left; width:44%;">NAME</th>
+                    <th style="width:8%;">3P</th>
+                    <th style="width:8%;">2P</th>
+                    <th style="width:8%;">FT</th>
+                    <th style="width:8%;">PTS</th>
+                    <th style="width:8%;">F</th>
+                    <th style="width:8%;">TF</th>
+                    <th style="width:8%;">UF</th>
+                  </tr>
+                </thead>
+                <tbody>`;
+      
+      let total3P = 0, total2P = 0, totalFT = 0, totalF = 0, totalTf = 0, totalUf = 0;
+      players.forEach(p => { 
+        if (p.isStarter || p.pts > 0 || p.fouls > 0 || p.tf > 0 || p.uf > 0) { 
+          let p3 = p.pts3 || 0; 
+          let p2 = p.pts2 || 0; 
+          let p1 = p.pts1 || 0;
+          let starterMark = p.isStarter ? '*' : '';
+          let captainMark = p.isCaptain ? ' (C)' : '';
+          let displayName = `${starterMark}${p.name}${captainMark}`;
+
+          html += `<tr>
+                     <td style="font-family:'Oswald'; font-weight:bold;">${p.num}</td>
+                     <td style="text-align:left; padding-left:2px; font-size:9px;">${displayName}</td>
+                     <td>${p3}</td><td>${p2}</td><td>${p1}</td>
+                     <td style="font-weight:bold; color:var(--accent-cyan);">${p.pts}</td>
+                     <td style="color:var(--accent-red);">${p.fouls}</td>
+                     <td style="color:#ffaa00;">${p.tf}</td>
+                     <td style="color:#ff00ff;">${p.uf}</td>
+                   </tr>`; 
+          total3P += p3; total2P += p2; totalFT += p1; totalF += p.fouls; totalTf += p.tf; totalUf += p.uf;
+        } 
+      });
+
+      html += `<tr class="bs-table-total" style="background:rgba(255,255,255,0.06); border-top:1px solid var(--panel-border);">
+                 <td></td>
+                 <td style="text-align:right; padding-right:6px;">TOTAL</td>
+                 <td>${total3P}</td><td>${total2P}</td><td>${totalFT}</td>
+                 <td style="color:var(--accent-cyan); font-size:11px;">${matchScore}</td>
+                 <td style="color:var(--accent-red); font-size:11px;">${totalF}</td>
+                 <td style="color:#ffaa00; font-size:11px;">${totalTf}</td>
+                 <td style="color:#ff00ff; font-size:11px;">${totalUf}</td>
+               </tr>
+             </tbody>
+           </table></div>`; 
+      return html;
+    }
+    
+    function downloadBoxScorePDF() {
+      let element = document.getElementById('boxScorePrintArea');
+      if(!element) return;
+      let textarea = document.getElementById('game_report_input');
+      let reportText = textarea ? textarea.value : '';
+      let reportBox = document.getElementById('report_container_box');
+      let gNumInput = document.getElementById('bs_game_number_input');
+      let gNumText = gNumInput ? gNumInput.value : '';
+      
+      let tempReportDiv = document.createElement('div');
+      tempReportDiv.style.cssText = "width:100%; background:rgba(0,0,0,0.5); border:1px solid var(--panel-border); color:#fff; border-radius:4px; padding:5px; font-family:'Noto Sans JP', sans-serif; font-size:10px; line-height:1.4; white-space:pre-wrap; word-break:break-all; text-align:left;";
+      tempReportDiv.innerText = reportText;
+      
+      let tempGNumSpan = document.createElement('span');
+      tempGNumSpan.style.cssText = "color:var(--accent-orange); font-weight:bold; font-size:11px; margin-left:4px;";
+      tempGNumSpan.innerText = gNumText ? `No: ${gNumText}` : '';
+
+      if(textarea) textarea.style.display = 'none';
+      if(reportBox) reportBox.appendChild(tempReportDiv);
+      if(gNumInput) gNumInput.style.display = 'none';
+      if(gNumInput && gNumInput.parentNode) gNumInput.parentNode.appendChild(tempGNumSpan);
+
+      let opt = {
+        margin:       [4, 4, 4, 4],
+        filename:     'basketball_mens_game_report.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#131926' },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      let btnPrint = document.getElementById('btn_print');
+      let btnPdf = document.getElementById('btn_download_pdf');
+      let btnClose = document.getElementById('btn_close_bs');
+      
+      if(btnPrint) btnPrint.style.display = 'none';
+      if(btnPdf) btnPdf.style.display = 'none';
+      if(btnClose) btnClose.style.display = 'none';
+
+      html2pdf().from(element).set(opt).save().then(() => {
+        tempReportDiv.remove();
+        tempGNumSpan.remove();
+        if(textarea) textarea.style.display = 'block';
+        if(gNumInput) gNumInput.style.display = 'inline-block';
+        if(btnPrint) btnPrint.style.display = 'inline-block';
+        if(btnPdf) btnPdf.style.display = 'inline-block';
+        if(btnClose) btnClose.style.display = 'block';
+      });
+    }
+
+    function closeBoxScoreModal() { 
+      let bsModal = document.getElementById('boxScoreModal');
+      if(bsModal) bsModal.style.display = 'none'; 
+    }
+  </script>
+</body>
+</html>
