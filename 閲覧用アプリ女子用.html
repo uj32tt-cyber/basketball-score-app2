@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>バスケ スコア - 観客用ライブビュー【女子】</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
+  <style>
+    :root {
+      --bg-main: #130a1c;
+      --panel-bg: rgba(255, 255, 255, 0.05);
+      --panel-border: rgba(255, 105, 180, 0.2);
+      --accent-pink: #ff2a8d;
+      --accent-cyan: #00f0ff;
+      --accent-red: #ff3366;
+      --accent-green: #00ffaa;
+      --text-main: #f8fafc;
+      --text-sub: #c0a8d0;
+    }
+
+    body { 
+      font-family: 'Noto Sans JP', sans-serif; 
+      background: radial-gradient(circle at top, #2d1238, var(--bg-main)); 
+      color: var(--text-main); 
+      margin: 0; padding: 20px;
+      min-height: 100vh;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+    }
+
+    .container { width: 100%; max-width: 950px; box-sizing: border-box; }
+
+    .category-title {
+      text-align: center; font-family: 'Oswald', sans-serif; font-size: 22px; color: var(--accent-pink);
+      margin-bottom: 10px; letter-spacing: 2px; text-transform: uppercase;
+    }
+
+    .court-switcher { text-align: center; margin-bottom: 20px; }
+    .court-switcher select {
+      background: rgba(0,0,0,0.6); color: var(--accent-pink); border: 2px solid var(--accent-pink);
+      padding: 12px 25px; border-radius: 30px; font-weight: bold; font-size: 18px; cursor: pointer; outline: none;
+      box-shadow: 0 0 15px rgba(255, 42, 141, 0.2); transition: all 0.3s;
+    }
+    .court-switcher select:hover { background: rgba(255,42,141,0.1); }
+
+    .status-banner {
+      margin-bottom: 15px; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: bold; text-align: center;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .status-banner.connected { background: rgba(0, 255, 170, 0.15); border: 1px solid var(--accent-green); color: var(--accent-green); }
+    .status-banner.error { background: rgba(255, 51, 102, 0.2); border: 1px solid var(--accent-red); color: #ff88aa; }
+
+    .live-badge {
+      display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px;
+      font-family: 'Oswald', sans-serif; font-size: 18px; letter-spacing: 2px; color: var(--accent-pink);
+    }
+    .live-dot {
+      width: 12px; height: 12px; background-color: var(--accent-pink); border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-pink); animation: blink 1.5s infinite;
+    }
+    @keyframes blink { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
+
+    .scoreboard { 
+      display: flex; justify-content: space-between; align-items: center; 
+      background: var(--panel-bg); padding: 30px 40px; border-radius: 16px; 
+      border: 1px solid var(--panel-border); box-shadow: 0 15px 35px rgba(0,0,0,0.6); backdrop-filter: blur(10px);
+    }
+    .team-info { display: flex; flex-direction: column; align-items: center; width: 30%; gap: 12px; }
+    .score-team-name { font-size: 28px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8); text-align: center; word-break: break-all; }
+    
+    .timeout-display {
+      background: rgba(255, 255, 255, 0.05); border: 1px solid var(--text-sub); color: var(--text-sub);
+      padding: 4px 15px; border-radius: 20px; font-size: 13px; font-weight: bold; font-family: 'Oswald', sans-serif;
+    }
+
+    .team-foul-box {
+      font-family: 'Oswald', sans-serif; font-size: 14px; color: var(--accent-red); background: rgba(255, 51, 102, 0.1);
+      border: 1px solid rgba(255, 51, 102, 0.3); padding: 4px 15px; border-radius: 6px; font-weight: bold; transition: all 0.3s;
+    }
+    .team-foul-box.penalty { background: var(--accent-red); color: #fff; box-shadow: 0 0 12px rgba(255, 51, 102, 0.6); border-color: #fff; animation: pulse 1s infinite; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+    .score-center { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 36%; }
+    .score-display { font-family: 'Oswald', sans-serif; font-size: 75px; font-weight: 700; color: #fff; display: flex; gap: 15px; align-items: center; text-shadow: 0 0 20px rgba(255,255,255,0.3); }
+    .score-num { min-width: 80px; text-align: center; }
+    .score-divider { color: var(--accent-pink); font-size: 55px; padding-bottom: 8px; }
+    
+    .quarter-display-box { 
+      background: var(--accent-pink); color: #fff; font-weight: bold; 
+      padding: 8px 30px; border-radius: 20px; font-size: 16px; margin-top: 10px;
+      font-family: 'Oswald', sans-serif; box-shadow: 0 0 15px rgba(255,42,141,0.4); letter-spacing: 1px;
+    }
+
+    #error_notice {
+      display: none; background: rgba(255, 51, 102, 0.15); border: 1px solid var(--accent-red); color: #ffbbcc;
+      padding: 15px 20px; border-radius: 12px; margin-top: 20px; text-align: left; font-size: 14px; line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="category-title">🚺 女子決勝トーナメント・予選リーグ ライブビュー</div>
+    <div style="text-align: center;">
+      <div id="status_banner" class="status-banner connected">● 接続確認中...</div>
+    </div>
+
+    <div id="score_panel">
+      <div class="court-switcher">
+        <select id="viewer_court_select" onchange="listenToCourt()">
+          <option value="court_A">🏀 Aコート (女子)</option>
+          <option value="court_B">🏀 Bコート (女子)</option>
+          <option value="court_C">🏀 Cコート (女子)</option>
+          <option value="court_D">🏀 Dコート (女子)</option>
+        </select>
+      </div>
+
+      <div class="live-badge"><div class="live-dot"></div> LIVE SCOREBOARD</div>
+      
+      <div class="scoreboard">
+        <div class="team-info">
+          <div class="score-team-name" id="display_teamA">TEAM A</div>
+          <div class="timeout-display" id="timeout_teamA">TIMEOUT : 0</div>
+          <div class="team-foul-box" id="teamFoul_teamA">TEAM FOUL : 0</div>
+        </div>
+        
+        <div class="score-center">
+          <div class="score-display">
+            <span class="score-num" id="scoreA">0</span><span class="score-divider">-</span><span class="score-num" id="scoreB">0</span>
+          </div>
+          <div class="quarter-display-box" id="quarterDisplay">1st Q</div>
+        </div>
+
+        <div class="team-info">
+          <div class="score-team-name" id="display_teamB">TEAM B</div>
+          <div class="timeout-display" id="timeout_teamB">TIMEOUT : 0</div>
+          <div class="team-foul-box" id="teamFoul_teamB">TEAM FOUL : 0</div>
+        </div>
+      </div>
+
+      <div id="error_notice">
+        <strong>⚠️ リアルタイム同期エラーが発生しました</strong><br>
+        <span id="error_msg_detail"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCYlGvxSCWqutEU8fTO_llGzy-TKUiDNwc",
+      authDomain: "basketballscoreapp.firebaseapp.com",
+      databaseURL: "https://basketballscoreapp-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "basketballscoreapp",
+      storageBucket: "basketballscoreapp.firebasestorage.app",
+      messagingSenderId: "527973469371",
+      appId: "1:527973469371:web:cf717cefaa3af20e03ed9e"
+    };
+
+    let database = null;
+    let currentCourtRef = null;
+
+    function setStatus(isOnline, message) {
+      const banner = document.getElementById('status_banner');
+      const errNotice = document.getElementById('error_notice');
+      const errDetail = document.getElementById('error_msg_detail');
+      if (isOnline) {
+        banner.className = "status-banner connected";
+        banner.innerText = "🟢 クラウド同期中 (" + message + ")";
+        errNotice.style.display = "none";
+      } else {
+        banner.className = "status-banner error";
+        banner.innerText = "🔴 同期エラー発生";
+        errNotice.style.display = "block";
+        errDetail.innerText = message || "データ取得に失敗しました。";
+      }
+    }
+
+    function initViewer() {
+      try {
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        database = firebase.database();
+        database.ref('.info/connected').on('value', (snap) => {
+          if (snap.val() === true) {
+            let courtId = document.getElementById('viewer_court_select').value;
+            setStatus(true, courtId);
+          }
+        });
+        listenToCourt();
+      } catch (e) {
+        setStatus(false, e.message);
+      }
+    }
+
+    function listenToCourt() {
+      if(!database) return;
+      if(currentCourtRef) currentCourtRef.off();
+
+      let courtId = document.getElementById('viewer_court_select').value;
+      // 女子専用ノード courts_womens/ を監視
+      currentCourtRef = database.ref('courts_womens/' + courtId);
+
+      currentCourtRef.on('value', (snapshot) => {
+        setStatus(true, courtId);
+        let data = snapshot.val();
+        if(data) {
+          document.getElementById('display_teamA').innerText = data.teamA_name || "TEAM A";
+          document.getElementById('display_teamB').innerText = data.teamB_name || "TEAM B";
+          document.getElementById('scoreA').innerText = data.scoreA || 0;
+          document.getElementById('scoreB').innerText = data.scoreB || 0;
+          document.getElementById('quarterDisplay').innerText = data.quarter || "1st Q";
+          document.getElementById('timeout_teamA').innerText = `TIMEOUT : ${data.timeoutA || 0}`;
+          document.getElementById('timeout_teamB').innerText = `TIMEOUT : ${data.timeoutB || 0}`;
+
+          let foulA = data.foulA || 0; let foulB = data.foulB || 0;
+          let boxA = document.getElementById('teamFoul_teamA');
+          boxA.innerText = `TEAM FOUL : ${foulA}`; if(foulA >= 5) boxA.classList.add('penalty'); else boxA.classList.remove('penalty');
+          let boxB = document.getElementById('teamFoul_teamB');
+          boxB.innerText = `TEAM FOUL : ${foulB}`; if(foulB >= 5) boxB.classList.add('penalty'); else boxB.classList.remove('penalty');
+        } else {
+          document.getElementById('display_teamA').innerText = "準備中";
+          document.getElementById('display_teamB').innerText = "準備中";
+          document.getElementById('scoreA').innerText = 0;
+          document.getElementById('scoreB').innerText = 0;
+          document.getElementById('quarterDisplay').innerText = "-";
+          document.getElementById('timeout_teamA').innerText = `TIMEOUT : 0`;
+          document.getElementById('timeout_teamB').innerText = `TIMEOUT : 0`;
+          document.getElementById('teamFoul_teamA').innerText = `TEAM FOUL : 0`;
+          document.getElementById('teamFoul_teamA').classList.remove('penalty');
+          document.getElementById('teamFoul_teamB').innerText = `TEAM FOUL : 0`;
+          document.getElementById('teamFoul_teamB').classList.remove('penalty');
+        }
+      }, (error) => {
+        setStatus(false, "アクセス拒否: [" + error.code + "]");
+      });
+    }
+
+    window.onload = function() { initViewer(); };
+  </script>
+</body>
+</html>
